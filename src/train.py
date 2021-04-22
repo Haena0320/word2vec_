@@ -33,7 +33,8 @@ class Trainer:
 
         if args.neg == 0:
             self.tree = data_loader(config.path_tree_list)
-            self.h_code = data_loader(config.path_h_code)
+            self.hh_code = data_loader(config.path_h_code)
+            
 
     def write_log(self, log, step):
         self.writer.add_scalar('train/log', log, step)
@@ -54,7 +55,8 @@ class Trainer:
         self.sentence_cnt = 0
         self.W_in = 0.01 * np.random.randn(self.vocab_size, self.embedding_dim)  # (vocab_size, embedding_dim)
         self.W_out = np.zeros((self.vocab_size, self.embedding_dim), dtype=np.float64)
-        self.sampler = UnigramTable(frequency=self.frequency, sample_size=5)
+        if self.neg > 0:
+            self.sampler = UnigramTable(frequency=self.frequency, sample_size=5)
         self.total_sentence_num = 4452411
 
     def random_train_word(self, sentence):
@@ -109,16 +111,15 @@ class Trainer:
                         for idx, target in enumerate(targets):
                             context = contexts[idx]
                             n1 = contexts_vec[idx]
-                            classifiers = list(zip(self.tree[target], self.h_code[target]))
-
+                            classifiers = list(zip(self.tree[target], self.hh_code[target]))
+                            b = np.zeros((self.embedding_dim,))
                             for s, label in classifiers:
-                                label = int(label)
                                 z = np.dot(n1, self.W_out[s])
                                 p = sigmoid(z)
                                 g = p - label
                                 if label == 1:
                                     total_loss -= np.log(p + 1e-7)
-                                    b = learning_rate * np.dot(g, self.W_out[s])
+                                    b += learning_rate * np.dot(g, self.W_out[s])
 
                                 else:
                                     total_loss -= np.log(1 - p + 1e-7)
@@ -127,6 +128,9 @@ class Trainer:
                             b /= len(context)
                             for c in context:
                                 self.W_in[c] -= b
+
+                    self.sentence_cnt += 1
+                    self.write_log(total_loss / len(contexts), self.sentence_cnt)
                 else: # skip
                     contexts, targets = make_target(target_words=target_words, window=self.window_size,cbow=False)
                     if len(contexts) < 3:
@@ -136,45 +140,52 @@ class Trainer:
                     if self.neg > 0:
                         for idx, context_mini in enumerate(contexts):
                             target = targets[idx]
-                            target_dummies = [target for i in range(len(context_mini))]
-                            ns_indices = self.sampler.get_negative_sample(target_dummies)
-                            for i, context in enumerate(context_mini):
-                                classifier = [(target, 1)] + [(sample, 0) for sample in ns_indices[i]]
-                                for s, label in classifier:
-                                    z = np.dot(self.W_in[context], self.W_out[s])
-                                    p = sigmoid(z)
-                                    g = p - label
-                                    if label == 1:
-                                        total_loss -= np.log(p + 1e-7)
-                                        b = learning_rate * g * self.W_out[s]
-                                    else:
-                                        total_loss -= np.log(1 - p + 1e-7)
-                                        b += learning_rate * g * self.W_out[s]
+                            ns_indices = self.sampler.get_negative_sample(target, len(context_mini))
+                            # positive 
+                            s = np.matmul(self.W_in[context_mini], self.W_out[target].T)
+                            s = sigmoid(s)
+                            g = s - 1
 
-                                    self.W_out[s] -= learning_rate * g * self.W_in[context]
-                                self.W_in[context] -= b
+                            dcontext_mini = learning_rate * np.outer(g, self.W_out[target])
+                            dtarget = learning_rate * np.matmul(g.T, self.W_in[context_mini])
+                            total_loss -= np.sum(np.log(s + 1e-7))
+                            self.W_out[target] -= dtarget
+                            # negative
+
+                            for ns in ns_indices:
+                                s = np.matmul(self.W_in[context_mini], self.W_out[ns].T)  # (4, 10), (5, 10).T
+                                s = sigmoid(s)
+                                g = s - 0  # 4,5
+
+                                dcontext_mini += learning_rate * np.matmul(g, self.W_out[ns])
+                                dns = learning_rate * np.matmul(g.T, self.W_in[context_mini])
+                                total_loss -= np.sum(np.log(1 - s + 1e-7))
+                                self.W_out[ns] -= dns
+                            self.W_in[context_mini] -= dcontext_mini
+
                     else:  # hs
                         for idx, context_mini in enumerate(contexts):
                             target = targets[idx]
-                            classifier = list(zip(self.tree[target], self.h_code[target]))
-                            for context in context_mini:
-                                for s, label in classifier:
-                                    label = int(label)
-                                    z = np.dot(self.W_in[context], self.W_out[s])
-                                    p = sigmoid(z)
-                                    g = p - label
-                                    if label == 1:
-                                        total_loss -= np.log(p + 1e-7)
-                                        b = learning_rate * np.dot(g, self.W_out[s])
-                                    else:
-                                        total_loss -= np.log(1 - p + 1e-7)
-                                        b += learning_rate * np.dot(g, self.W_out[s])
-                                    self.W_out[s] -= learning_rate * np.dot(g, self.W_in[context])
-                                self.W_in[context] -= b
+                            tree = self.tree[target]
+                            hh_code = self.hh_code[target]
+                            classifier = list(zip(tree, hh_code))
+                            dcontext_mini = np.zeros_like(self.W_in[context_mini], dtype="float32")
+                            for node, label in classifier:
+                                s = np.matmul(self.W_in[context_mini], self.W_out[node].T)
+                                s = sigmoid(s)
+                                g = s - label
+                                if label > 0:
+                                    total_loss -= np.sum(np.log(s + 1e-7))
+                                else:
+                                    total_loss -= np.sum(np.log(1 - s + 1e-7))
+                                    
+                                dcontext_mini += learning_rate * np.outer(g, self.W_out[node])
+                                self.W_out[node] -= learning_rate * np.matmul(g.T, self.W_in[context_mini])
+                            self.W_in[context_mini] -= dcontext_mini
 
-                self.sentence_cnt += 1
-                self.write_log(total_loss/len(contexts), self.sentence_cnt)
-
+                    self.sentence_cnt += 1
+                    self.write_log(total_loss/len(contexts), self.sentence_cnt)
+            del training_data
             if f_cnt % 9 == 0:
                 with gzip.open(os.path.join(args_log, 'word2vec_{}.pkl'.format(f_cnt)),"wb") as f:
                     pickle.dump(self.W_in, f)
