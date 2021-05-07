@@ -14,7 +14,7 @@ from src.model import *
 
 class Trainer:
 
-    def __init__(self, config, args, writer):
+    def __init__(self, config, args, writer1, writer2):
 
         self.cbow = args.cbow
         self.neg = args.neg
@@ -28,22 +28,27 @@ class Trainer:
         self.threshold = args.sample_threshold
         self.max_learning_rate = args.learning_rate
 
+        #self.sentence_cnt = 27546389 # skip-neg : 90  # skip-hs : 63
+        self.sentence_cnt = 19282472
+        self.total_sentence_num = 30301028
+
         self.epochs = args.epochs
-        self.writer = writer
+        self.writer1 = writer1
+        self.writer2 = writer2
 
         if args.neg == 0:
             self.tree = data_loader(config.path_tree_list)
             self.hh_code = data_loader(config.path_h_code)
             
 
-    def write_log(self, log, step):
-        self.writer.add_scalar('train/log', log, step)
-        self.writer.flush()
+    def write_log(self, log, lr, step):
+        self.writer1.add_scalar('train/log', log, step)
+        self.writer2.add_scalar("train/lr", lr, step)
 
     def update_learning_rate(self, total_step, max_learning_rate, cnt):
         learning_rate = 1 - cnt / (total_step * self.epochs)
-        if learning_rate <= 0.0001:
-            learning_rate = 0.0001
+        if learning_rate <= 0.001:
+            learning_rate = 0.001
         learning_rate *= max_learning_rate
         return learning_rate
 
@@ -52,12 +57,14 @@ class Trainer:
         total_count = sum(self.frequency.values())
         freqs = {word: count / total_count for word, count in self.frequency.items()}
         self.ran = {self.word2id[word]: (np.sqrt(freqs[word] / self.threshold) + 1) * (self.threshold / freqs[word]) for word in self.frequency.keys()}
-        self.sentence_cnt = 0
-        self.W_in = 0.01 * np.random.randn(self.vocab_size, self.embedding_dim)  # (vocab_size, embedding_dim)
+
+        #self.W_in = 0.01 * np.random.randn(self.vocab_size, self.embedding_dim)  # (vocab_size, embedding_dim)
+        with gzip.open("/hdd1/user15/workspace/word2vec/log/skip-hs/lr0.025/word2vec_63.pkl") as f:
+            self.W_in = pickle.load(f)
         self.W_out = np.zeros((self.vocab_size, self.embedding_dim), dtype=np.float64)
         if self.neg > 0:
             self.sampler = UnigramTable(frequency=self.frequency, sample_size=5)
-        self.total_sentence_num = 4452411
+
 
     def random_train_word(self, sentence):
         return [word for word in sentence if self.ran[word] > random.random()]
@@ -67,6 +74,7 @@ class Trainer:
         for i in tqdm(self.data_list):
             print('data file : {}'.format(i))
             training_data = data_loader(i)
+    
             f_cnt += 1
             if f_cnt > len(self.data_list):
                 break
@@ -130,7 +138,7 @@ class Trainer:
                                 self.W_in[c] -= b
 
                     self.sentence_cnt += 1
-                    self.write_log(total_loss / len(contexts), self.sentence_cnt)
+                    self.write_log(total_loss / len(contexts), learning_rate, self.sentence_cnt)
                 else: # skip
                     contexts, targets = make_target(target_words=target_words, window=self.window_size,cbow=False)
                     if len(contexts) < 3:
@@ -170,6 +178,7 @@ class Trainer:
                             hh_code = self.hh_code[target]
                             classifier = list(zip(tree, hh_code))
                             dcontext_mini = np.zeros_like(self.W_in[context_mini], dtype="float32")
+
                             for node, label in classifier:
                                 s = np.matmul(self.W_in[context_mini], self.W_out[node].T)
                                 s = sigmoid(s)
@@ -178,13 +187,13 @@ class Trainer:
                                     total_loss -= np.sum(np.log(s + 1e-7))
                                 else:
                                     total_loss -= np.sum(np.log(1 - s + 1e-7))
-                                    
                                 dcontext_mini += learning_rate * np.outer(g, self.W_out[node])
                                 self.W_out[node] -= learning_rate * np.matmul(g.T, self.W_in[context_mini])
+
                             self.W_in[context_mini] -= dcontext_mini
 
                     self.sentence_cnt += 1
-                    self.write_log(total_loss/len(contexts), self.sentence_cnt)
+                    self.write_log(total_loss/len(contexts),learning_rate, self.sentence_cnt)
             del training_data
             if f_cnt % 9 == 0:
                 with gzip.open(os.path.join(args_log, 'word2vec_{}.pkl'.format(f_cnt)),"wb") as f:

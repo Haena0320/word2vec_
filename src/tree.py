@@ -101,3 +101,89 @@ def tree(frequency_path, save_path):
     print("data save ..")
     data_save(total_list, save_path)
     return None
+
+
+
+######################################
+
+import gzip
+import pickle
+with gzip.open("/hdd1/user15/workspace/word2vec/data/1-billion-corpus/preprocessed/etc/frequency.gzip", 'rb') as f:
+    frequency = pickle.load(f)
+    
+with gzip.open("/hdd1/user15/workspace/word2vec/data/1-billion-corpus/preprocessed/etc/word2id.gzip", 'rb') as f:
+    word2id = pickle.load(f)
+
+id_frequency = {word2id[k]:v for k, v in frequency.items()}
+
+
+path, code = encode_huffman(id_frequency)
+
+with gzip.open("/hdd1/user15/workspace/word2vec/data/1-billion-corpus/preprocessed/etc/tree_list.gzip", 'wb') as f:
+    pickle.dump(path, f)
+
+with gzip.open("/hdd1/user15/workspace/word2vec/data/1-billion-corpus/preprocessed/etc/hh_code.gzip", 'wb') as f:
+    pickle.dump(code, f)
+
+
+def encode_huffman(frequency):
+    vocab_size = len(frequency.items())
+    count = [v for k, v in frequency.items()] + [1e15] * (vocab_size - 1)
+    print(len(count))
+    parent = [0]*(2*vocab_size-2)
+    binary = [0]*(2*vocab_size-2)
+    
+    p1 = vocab_size-1
+    p2 = vocab_size
+    for i in range(vocab_size-1):
+        if p1 >= 0:
+            if count[p1] < count[p2]:
+                min1 = p1
+                p1 -= 1
+
+            else:
+                min1 = p2
+                p2 += 1
+
+        else:
+            min1 = p2
+            p2 += 1
+
+        if p2 >= 0:
+            if count[p1] < count[p2]:
+                min2 = p1
+                p1 -=1
+            else:
+                min2 = p2
+                p2 += 1
+
+        else:
+            min2 = p2
+            p2 += 1
+
+        count[vocab_size + i] = count[min1] + count[min2]
+        parent[min1] = vocab_size + i
+        parent[min2] = vocab_size + i
+        binary[min2] = 1
+
+    # Assign binary code and path pointers to each vocab word
+    root_idx = 2 * vocab_size - 2
+    total_path = []
+    total_code = []
+    for i, token in enumerate(range(len(id_frequency.items()))):
+        path = []  # List of indices from the leaf to the root
+        code = []  # Binary Huffman encoding from the leaf to the root
+
+        node_idx = i
+        while node_idx < root_idx:
+            if node_idx >= vocab_size: path.append(node_idx)
+            code.append(binary[node_idx])
+            node_idx = parent[node_idx]
+        path.append(root_idx)
+
+        # These are path and code from the root to the leaf
+        total_path.append([j - vocab_size for j in path[::-1]])
+        total_code.append(code[::-1])
+    return total_path, total_code
+
+

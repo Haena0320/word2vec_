@@ -7,6 +7,8 @@ def sigmoid(x):
     return 1.0 / (1.0 + np.exp(-x))
 
 import math
+import numpy as np
+import math
 class UnigramTable:
     def __init__(self, frequency, sample_size):
         self.sample_size = sample_size
@@ -31,15 +33,15 @@ class UnigramTable:
         indice = np.random.randint(low=0, high=len(self.table), size=5)
         return self.table[indice]
 
-    def get_negative_sample(self, target):
+    def get_negative_sample(self, target, dummies_len):
         s_list = list()
         while True:
             s = self.sample()
-            if target[0] not in s:
-                s_list.append(s)
+            if target not in s:
+                s_list.append(list(s))
             else:
                 continue
-            if len(s_list) == len(target):
+            if len(s_list) == dummies_len:
                 break
 
         return s_list

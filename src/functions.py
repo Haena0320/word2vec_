@@ -41,7 +41,6 @@ def subsampling_prob(vocabulary, word_to_id, total_word, sub_t):
     id_to_sub_p = dict(np.stack((idx, sub_p), axis=1))
     return id_to_sub_p
 
-
 def unigramTable(vocabulary, word_to_id):
     UnigramTable = []   # sampling pool = Unigram table.       len(UnigramTable) = total_word
     current = 0         # the current index of sub_list

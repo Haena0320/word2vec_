@@ -28,7 +28,7 @@ for line in loaded:
         syntactic.append(line.split())
 
 # load word vectors
-file="/hdd1/user15/workspace/word2vec/log/cbow-hs/lr0.025/word2vec_99.pkl"
+file="/hdd1/user15/workspace/word2vec/log/skip-hs/lr0.025/word2vec_63.pkl"
 
 
 with gzip.open(file, 'rb') as fr:
@@ -47,7 +47,6 @@ valid_sem = checkValid(semantic, vocabulary)
 valid_syn = checkValid(syntactic, vocabulary)
 print("valid semantic: %d/%d" %(len(valid_sem), len(semantic)))
 print("valid syntactic: %d/%d" %(len(valid_syn), len(syntactic)))
-
 
 ############################### Start evaluate ##################################
 batch_size = 20

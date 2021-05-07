@@ -1,0 +1,16 @@
+{
+  "path_raw": "./data/1-billion-corpus/raw/",
+  "path_id2word_original": "./data/1-billion-corpus/preprocessed/etc/id2word_original.gzip",
+  "path_word2id": "./data/1-billion-corpus/preprocessed/etc/word2id.gzip",
+  "path_frequency": "./data/1-billion-corpus/preprocessed/etc/frequency.gzip",
+  "path_temp": "./data/1-billion-corpus/preprocessed/temp/",
+  "path_temp2": "./data/1-billion-corpus/preprocessed/temp2/",
+  "path_word2vec": "./data/1-billion-corpus/preprocessed/word2vec/",
+  "path_tree_list": "./data/1-billion-corpus/preprocessed/etc/tree_list.gzip",
+  "path_h_code": "./data/1-billion-corpus/preprocessed/etc/hh_code.gzip",
+  "path_tree_target": "./data/1-billion-corpus/preprocessed/etc/tree_target.gzip",
+
+  "path_analogy_word":"./data/analogy/questions-words.txt",
+  "path_analogy_phrase": "./data/analogy/questions-phrases.txt",
+  "path_analogy_result":"./log/analogy_result.gzip"
+}

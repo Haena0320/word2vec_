@@ -79,7 +79,8 @@ class DataReader:
 
         print("Total embeddings: " + str(len(new_frequency.keys())))
         print('saving....')
-
+        print("frequency {}".format(sum(new_frequency.values())))
+        print('word2id {}'.format(len(new_word2id.keys())))
         data_save(new_frequency, self.config.path_frequency)
         data_save(new_word2id, self.config.path_word2id)
 
@@ -126,7 +127,7 @@ def make_target(target_words=None, window=5, cbow=True):
                     continue
 
         else:
-            window = random.randint(3, window)
+            #window = random.randint(3, window)
             for a in range(2 * window + 1):
                 if a != window:
                     current = target_words.index(word) - window + a

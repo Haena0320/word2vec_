@@ -32,18 +32,21 @@ oj = os.path.join
 
 from src.model import *
 from src.train import Trainer as trainer
-
+#from src.test_lr import Trainer as trainer
 args.log = 'log/{}'.format(args.model)
 lr_loc = oj(args.log, "lr"+str(args.learning_rate))
 tb_loc = oj(lr_loc, "tb")
+lrr_loc = oj(lr_loc, "lr")
 
 if not os.path.exists(args.log): # make log save directory
     os.mkdir(args.log)
     os.mkdir(lr_loc)
     os.mkdir(tb_loc)
+    os.mkdir(lrr_loc)
 
-writer = SummaryWriter(tb_loc) # log writer
-trainer = trainer(config, args, writer)
+writer1 = SummaryWriter(tb_loc) # log writer
+writer2 = SummaryWriter(lrr_loc)
+trainer = trainer(config, args, writer1, writer2)
 trainer.init_train()
 print("Total Epoch : {}".format(args.epochs))
 
